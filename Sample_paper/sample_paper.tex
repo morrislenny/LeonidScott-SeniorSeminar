@@ -74,19 +74,116 @@ This difficult model would stress SAIL's Surrogate Assisted model to a greater e
 \section{Introduction}
 \label{sec:introduction}
 
+\todo[inline]{Insert better opening statement}
 
+Fluid dynamics stands as one of the most difficult problem spaces to model and thus design in.
+The equations that govern fluid flow, known as the \textit{Navier-Stokes Equations}, are a set of of partial differential equations with no known solution.
+As a result, aerospace engineers must use extraordinary computational power to approximate navier stokes results.
+High fidelity models of aerodynamic devices can take hours to simulate and still impart noticeable error.
+Given the difficulty in modeling fluid flow, designing these devices is an extraordinary challenge.
+
+Optimization tools aid in this challenge by helping engineers at the end of design cycle by refining a design to what is known as a local optima.
+In difficult problem spaces such as fluid dynamics, there is no guarantee that an optimizer has found the best possible solution across the entire problem space.
+However, the optimizer can be very confident that it has found the best solution in one small region.
+We call the optimal solution across the problem space a \textit{global optima}, and an optimal solution in a subsection of the problem space a \textit{local optima}. 
+
+In 2014, Autodesk, a producer of modelling and optimizing software found that their software was being used in a peculiar way by engineers.
+Instead of using optimizing tools at the end of the design process to refine designs, engineers used them at the beginning to explore the space of possible designs (Bradner et al).
+Instead of using these tools to find, with great accuracy, one local optima, they were used to find several throughout the problem space.
+By finding several local optima, designers could see what tradeoffs are inherent in the problem space, and hone in on regions of interest.
+This process is known as \textit{illumination}.
+
+Over the course of several years, a research group consisting of Adam Gaier, Alexander Asteroth, and Jean-Baptiste Mouret have developed a purpose built algorithm to illuminate problem spaces, particularly when models are computationally expensive.
+This algorithm, known as \textit{Surrogate-Assisted Illumination} (SAIL) uses a thus far reliable method for exploring problem spaces known as evolutionary computation, albeit in a very specialized form.
+The goal of SAIL is to produce a series of high performing solutions, across the problem space, to challenging engineering problems.
+
+\todo[inline]{Insert stuff about paper structure}
+
+\section{Background: Evolutionary Algorithms}
+\label{sec:evolutionaryAlgorithms}
+
+SAIL uses a type of Evolutionary Algorithm to explore and exploit the problem space.
+Evolutionary Algorithms (EA's) are stochastic algorithms (algorithms including randomness) inspired by biological evolution.
+The premise is that a population of potential solutions is tested against a model of the problem and assigned a \textit{fitness score}.
+The individuals with the best fitness scores move onto the next generation and produce ``offspring''.
+Over many generations the performance against the model will improve until either a target performance is obtained, or the algorithm reaches a fixed number of generations. 
+
+\todo[inline]{Might include blurb about exploration vs exploitation? Will be decided after MAP-Elites section is done}
 
 \section{SAIL Build-up}
-\label{sec:body}
-
-\subsection{Evolutionary Algorithms}
-\label{sec:typeChangesSpecialChars}
-
-\subsection{SAIL Introduction}
-\label{sec:mathEquations}
+\label{sec:SAILBuildUp}
+SAIL is made up of several components. There is:
+\begin{itemize}
+  \item \textbf{MAP Elites:} This is the evolutionary algorithm that SAIL is based on.
+  \item \textbf{Bayesian Optimization:} The mechanism by which SAIL decides where and how new individuals will be created.
+  \item \textbf{Gaussian Processes:} A way of not having to compute the expensive model by approximating it in what is known as a surrogate model.
+\end{itemize}
+In this section, we will go through each of these components in depth before bringing them all together and constructing Surrogate Assisted Illumination.
 
 \subsection{MAP-Elites}
-\label{sec:displayEquations}
+\label{sec:MAP-Elites}
+
+MAP Elites is an Evolutionary Algorithm developed in April 2015 by Jean-Baptiste Mouret and Jeff Clune.
+The purpose of MAP Elites is to \textit{illuminate} the problem space.
+That is, to produce a series of high performing solutions that represent different trade offs and insights into the problem space.
+Before moving into the details of MAP Elites, it is important to understand the terminology surrounding individuals in MAP Elites.
+
+\subsubsection{Genotypes}
+\label{sec:genotypes}
+
+An important aspect in the application of any Evolutionary Algorithm is the way that individuals are represented.
+In engineering contexts, there is a need to represent a physical object in all of its complexities in a compact and understandable form.
+This representation is referred to an \textit{encoding} or a \textit{genotype} interchangeably.
+Running with the theme of aerospace engineering, a common way to represent a two dimensional \textit{foil} (wing shape) is with three numbers.
+These three numbers refer to important geometric features about the foil shape, but also directly relate to foil performance.
+We will call these values M, P, and T. In very rough terms, these values refer to:
+\begin{itemize}
+  \item M refers to how ``arched'' the foil is is.
+  \item P refers to where the most ``arched'' part of the foil exists.
+  \item T refers to the thickness of the foil at the most arched section.
+\end{itemize}
+With this compact genotype for a 2D foil, it is possible to represent a large range of complex shapes, with only three numbers.
+
+\subsubsection{Phenotypes}
+\label{sec:phenotypes}
+
+Once we have a representation of an individual, we can start deriving its \textit{behaviors}, or \textit{phenotypes}.
+In this example, those behaviors might include the Lift and Drag of the foil in a certain condition as well as its Cross-Sectional Area.
+In this case, the \textit{Feature Space}, the space of all possible phenotypes, will exist in three dimensions: Lift, Drag, and Cross-Sectional Area.
+The function that takes in an individual and returns its phenotype is known as the \textit{behavior function}, denoted as $b(x)$.
+
+\subsubsection{Fitness}
+\label{sec:fitness}
+
+MAP Elites requires some sort of specific score so that it can strictly tell that one foil is ``better'' than another.
+The \textit{fitness function} $f(x)$ takes an individual and its behaviors and returns a score quantifying how well it accomplishes our specified goals.
+When developing a foil shape, we most certainly care about Lift and Drag, but for weight and structural reasons, we might also care about the foil’s cross-sectional area.
+A fitness function that encompases these behaviors into a single score might look like this:
+$$f(x) = a*Lift(x) - b *Drag(x) + c*Area(x)$$
+Where $a$, $b$, and $c$ are constants defined by the engineer based on which factors are more important than others.
+In this example, $f(x)$ is set setup such that a \textit{higher} fitness score means a foil is better at achieving our goals, but it doesn't have to be that way.
+Fitness functions can be setup such that a good score is small score, a small absolute value, etc...
+
+\subsubsection{MAP Elites}
+\label{MAPElitesSub}
+
+\subsection{Bayesian Optimization}
+\label{bayesianOptimization}
+
+\subsection{Gaussian Process}
+\subsubsection{gaussianProcess}
+
+\subsection{SAIL Algorithm}
+\label{SAILAlgorithm}
+
+\section{Experiments}
+\label{experiments}
+
+\subsection{2D Foil Experiment}
+\label{2DFoilExperiment}
+
+\subsection{3D Foil Experiment: Velomobile Experiment}
+\label{3DFoilExperiment}
 
 \section{Conclusions}
 \label{sec:conclusions}
