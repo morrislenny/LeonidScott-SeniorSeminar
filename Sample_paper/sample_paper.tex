@@ -10,6 +10,15 @@
 \documentclass{sig-alternate}
 \usepackage{color}
 \usepackage[colorinlistoftodos]{todonotes}
+\usepackage{comment}
+\usepackage{amsmath}
+\usepackage{hyperref}
+\hypersetup{
+    colorlinks=true,
+    linkcolor=black,
+    filecolor=black,      
+    urlcolor=cyan,
+}
 
 %%%%% Uncomment the following line and comment out the previous one
 %%%%% to remove all comments
@@ -43,6 +52,7 @@ Leonid Scott\\
 
 \maketitle
 \begin{abstract}
+\begin{comment}
 This paper takes a deep dive into Gaier et al's paper, \textit{Data-Efficient Design Exploration through Surrogate-Assisted Illumination}.
 While many evolutionary algorithms attempt to find the optimal solution to a problem space, Gaier et al develops an evolutionary algorithm that \textit{illuminates} the problem space. 
 This concept is particularly attractive in aerospace engineering as it allows engineers to properly survey the possible landscape of wing designs before investing into one particular concept heavily.
@@ -66,10 +76,10 @@ This paper conducts two different experiments to test SAIL's viability in the co
 The first test attempts to design a set of two dimensional airfoils. A second test was added to design the three dimensional shape of a velomobile.
 This second test was deemed important as the model to test it was much more complicated than its two dimensional counterpart.
 This difficult model would stress SAIL's Surrogate Assisted model to a greater extent.
-
+\end{comment}
 \end{abstract}
 
-\keywords{Evolutionary Computation, MAP-Elites, Gausian Process, Bayesian Optimization}
+\keywords{Evolutionary Computation, MAP-Elites, Gausian Processes, Bayesian Optimization}
 
 \section{Introduction}
 \label{sec:introduction}
@@ -78,7 +88,7 @@ This difficult model would stress SAIL's Surrogate Assisted model to a greater e
 
 Fluid dynamics stands as one of the most difficult problem spaces to model and thus design in.
 The equations that govern fluid flow, known as the \textit{Navier-Stokes Equations}, are a set of of partial differential equations with no known solution.
-As a result, aerospace engineers must use extraordinary computational power to approximate navier stokes results.
+As a result, aerospace engineers must use extraordinary computational power to approximate Navier-Stokes results.
 High fidelity models of aerodynamic devices can take hours to simulate and still impart noticeable error.
 Given the difficulty in modeling fluid flow, designing these devices is an extraordinary challenge.
 
@@ -104,11 +114,18 @@ The goal of SAIL is to produce a series of high performing solutions, across the
 
 SAIL uses a type of Evolutionary Algorithm to explore and exploit the problem space.
 Evolutionary Algorithms (EA's) are stochastic algorithms (algorithms including randomness) inspired by biological evolution.
-The premise is that a population of potential solutions is tested against a model of the problem and assigned a \textit{fitness score}.
+The premise of an Evolutionary Algorithm is that a population of potential solutions is tested against a model of the problem and assigned a \textit{fitness score}.
 The individuals with the best fitness scores move onto the next generation and produce ``offspring''.
 Over many generations the performance against the model will improve until either a target performance is obtained, or the algorithm reaches a fixed number of generations. 
 
 \todo[inline]{Might include blurb about exploration vs exploitation? Will be decided after MAP-Elites section is done}
+
+\begin{figure*}[th]
+\centering
+\psfig{file=genome-to-fitness.pdf,width=\textwidth}
+\caption{Process of moving from an individual genome to a fitness score. \textbf{NOTE: the first space is known as the search space}}
+\label{fig:genome-to-fitness}
+\end{figure*}
 
 \section{SAIL Build-up}
 \label{sec:SAILBuildUp}
@@ -133,16 +150,22 @@ Before moving into the details of MAP Elites, it is important to understand the 
 
 An important aspect in the application of any Evolutionary Algorithm is the way that individuals are represented.
 In engineering contexts, there is a need to represent a physical object in all of its complexities in a compact and understandable form.
-This representation is referred to an \textit{encoding} or a \textit{genotype} interchangeably.
-Running with the theme of aerospace engineering, a common way to represent a two dimensional \textit{foil} (wing shape) is with three numbers.
-These three numbers refer to important geometric features about the foil shape, but also directly relate to foil performance.
-We will call these values M, P, and T. In very rough terms, these values refer to:
+In evolutionary algorithms, this representation is referred to as an \textit{encoding} or a \textit{genotype} interchangeably.
+Running with the theme of aerospace engineering, a common way to represent a two dimensional \textit{foil} (wing shape) is with a format called NACA 4 Digit Series \cite{wiki:NACAairfoil}(see fig \ref{fig:NACA4}).
+NACA 4 digit foils contain three numbers refer to important geometric features about the foil shape, but also directly relate to foil performance.
+We will call these values $M$, P, and T. In very rough terms, these values refer to:
 \begin{itemize}
   \item M refers to how ``arched'' the foil is is.
   \item P refers to where the most ``arched'' part of the foil exists.
   \item T refers to the thickness of the foil at the most arched section.
 \end{itemize}
 With this compact genotype for a 2D foil, it is possible to represent a large range of complex shapes, with only three numbers.
+\begin{figure}[!h]
+\centering
+\psfig{file=NACA4-Diagram.pdf,width = 3in}
+\caption{Description of NACA 4 Foil.}
+\label{fig:NACA4}
+\end{figure}
 
 \subsubsection{Phenotypes}
 \label{sec:phenotypes}
@@ -155,23 +178,258 @@ The function that takes in an individual and returns its phenotype is known as t
 \subsubsection{Fitness}
 \label{sec:fitness}
 
-MAP Elites requires some sort of specific score so that it can strictly tell that one foil is ``better'' than another.
+MAP-Elites requires some sort of specific score so that it can strictly tell that one foil is ``better'' than another.
 The \textit{fitness function} $f(x)$ takes an individual and its behaviors and returns a score quantifying how well it accomplishes our specified goals.
-When developing a foil shape, we most certainly care about Lift and Drag, but for weight and structural reasons, we might also care about the foil’s cross-sectional area.
-A fitness function that encompases these behaviors into a single score might look like this:
-$$f(x) = a*Lift(x) - b *Drag(x) + c*Area(x)$$
+When developing a foil shape, we most certainly care about Lift and Drag, but for weight and structural reasons, we might also care about the foil's cross-sectional area.
+A fitness function that encompasses these behaviors into a single score might look like this:
+$$f(x) = a*\textit{Lift}(x) - b *Drag(x) + c*Area(x)$$
 Where $a$, $b$, and $c$ are constants defined by the engineer based on which factors are more important than others.
 In this example, $f(x)$ is set setup such that a \textit{higher} fitness score means a foil is better at achieving our goals, but it doesn't have to be that way.
-Fitness functions can be setup such that a good score is small score, a small absolute value, etc...
+Fitness functions can be setup such that a good score is small score, a small absolute value is a good score, etc...
 
 \subsubsection{MAP Elites}
+
+MAP Elites works by discretizing the feature space into a set of bins.
+Each bin in the grid represents tradeoffs between features.
+For example, the feature space in figure \ref{fig:FeatureSpace} is split into three sections per dimension, with three dimensions, this results in 27 bins in the feature space.
+The highlighted box indicates individuals with medium lift, medium cross sectional area, and high drag.
+
+Each generation in MAP Elites begins by creating an individual from the search space and computing its behaviors using the behavior function.
+The results of the behavior function will place it in a bin of the feature space.
+If there is already an individual in that bin, the fitness function will be computed on both individuals, and the individual with the superior fitness will end that generation occupying the bin.
+If there is no individual in that bin, the new individual simply occupies it.
+
+In the initial generation (generation 0), a randomly generated population of individuals is created from the search space.
+Those individuals then compete for spots in the feature space.
+The individuals who occupy a bin at the end of a generation are known as \textit{elites}.
+During each subsequent generation, a new individual is randomly generated.
+That new individual will compete with the elites from the previous generation for a bin in the feature space.
+
+\begin{figure}[tb]
+\centering
+\psfig{file=DiscretizedFeatureSpace.pdf,width = 3in}
+\caption{How MAP-Elites disrectizes a feature space. Here, each of three dimensions is split into three sections, yielding 27 "bins''.}
+\label{fig:FeatureSpace}
+\end{figure}
+
+The default MAP-Elites pseudocode (fig \ref{fig:MAP-ElitesPCode}) creates a new individual by \textit{mutating} a random elite.
+The process works as follows, an elite is randomly chosen, and then randomly ``tweaked''. 
+Because small changes in the genome of an individual can result in large changes of behavior, it is common for the mutated individual to compete in a different bin than the parent.
+
+The programmer can decide how MAP-Elites terminates.
+Several options include stopping after:
+\begin{itemize}
+  \item A fixed number of generations is exceeded
+  \item A fixed number of computational resources is exceeded
+  \item The best elite has a fitness better than some threshold
+  \item The average fitness of the elites is better than some threshold
+  \item A certain number of bins are filled
+\end{itemize}
+The last point alludes to an important aspect of MAP-Elites: not all bins can always be filled.
+In our example, physics does not allow a foil to have high lift, zero drag, and minimal cross-sectional area.
+For this reason, the highest lift, lowest drag, lowest cross-sectional area bin might not be filled.
+In addition to finding good solutions for a problem, MAP-Elites also offers insights on just where the physics of a problem caps performance of solutions.
+
+\begin{figure*}[!t]
+\centering
+\psfig{file=MAP-ElitesAlgPCode.pdf,width = 6in}
+\caption{Pseudocode of default MAP-Elites. Taken from \cite{Mouret:2015}.}
+\label{fig:MAP-ElitesPCode}
+\end{figure*}
+
 \label{MAPElitesSub}
+
+\subsection{Gaussian Process}
+\label{gaussianProcess}
+
+Like many Evolutionary Algorithms, MAP-Elites evaluates the model's fitness and behavior functions at least once every generation.
+Considering a single MAP-Elites run can involve hundreds of thousands, or even millions of generations, there is a need for the model to be easy to execute.
+However, in engineering contexts like fluid dynamics, computing lift and drag of a foil in high fidelity can take hours.
+In cases like these, the model is prohibitively computationally expensive for use in traditional Evolutionary Algorithms
+
+SAIL avoids computing the model directly by utilizing \textit{surrogate models} to approximate the model.
+Surrogate models strategically execute the model in only limited points of the problem space. 
+They then use this information to extrapolate what other parts of the model should behave like.
+Gaier et al have chosen to use \textit{Gaussian processes} (GP's) as a surrogate model because they require very few queries from the model in order to start extrapolating from the problem space.
+In addition, GP's include information about how confident they are about the extrapolation of a certain point in the problem space.
+
+\subsubsection{Gaussian Distributions}
+\label{GaussianDistributions}
+
+In order to understand GP's, it is necessary to understand Gaussian distributions.
+Often Gaussian distributions are also called normal distributions.
+They carry the bell shape found in figure \ref{fig:UnivariateGaussian}:
+
+\begin{figure}[htb]
+\centering
+\psfig{file=UnivariateGaussian.pdf,width = 3in}
+\caption{Gaussian (Normal) distribution: $\mu$ is called the mean of the distribution, $\sigma$ and is called the variance.}
+\label{fig:UnivariateGaussian}
+\end{figure}
+
+When a variable comes from a probability distribution, it is more likely to have a value of $x$ where $p(x)$ is high.
+A variable drawn from a Gaussian distribution is most likely equal to $\mu$ (the mean).
+The probability of a random variable being equal to a value $m$ from a Gaussian drops off as $m$ gets further away from $\mu$.
+
+$\sigma$, the variance of the distribution, decides how quickly the probability drops off from the mean.
+A high $\sigma$ results in a very sharp peak around $\mu$ in which a random sample from the distribution is very likely to be close to $\mu$.
+A low $\mu$ results in a very flat distribution in which it is still very possible a random sample could have some distance from the mean. 
+
+We define a Gaussian distribution as follows:
+
+\[x ~ \sim \mathcal{N}(\mu, \sigma)\]
+
+This is read as \textit{The random variable comes from a Gaussian distribution with mean $\mu$, and variance $\sigma$}.
+
+\subsubsection{Multivariate Gaussian}
+
+So far, we have described a Gaussian distribution over one variable, $x$.
+However, we need to know what a Gaussian distribution looks like over many variables.
+Figure \ref{fig:StandardMultivariateGaussian}, shows what a Gaussian distribution could look like over two variables, $x_{1}$ and $x_{2}$.
+
+\begin{figure}[htb]
+\centering
+\psfig{file=StandardMultivariateGaussian.pdf,width = 3in}
+\caption{}
+\label{fig:StandardMultivariateGaussian}
+\end{figure}
+
+When we sample a point from this Gaussian, we will get a point $m$ in the $x_{1},x_{2}$ plane.
+$m$ is likely to be close to our mean $(\mu_{1},\mu_{2})$.
+Conversely, it will be unlikely for $m$ to be far from $(\mu_{1},\mu_{2})$.
+
+Instead of using a single number, $\sigma$, to represent variance, the multivariate version of the Gaussian distribution uses a \textit{matrix} (a two-dimensional array),$\Sigma$, called the \textit{covariance matrix}.
+In this two-dimensional case, $\Sigma$ is a two by two matrix, and each element within $\Sigma$ determines the shape of the Gaussian across the $x_{1},x_{2}$ plane.
+
+A multivariate Gaussian is described as follows:
+
+\[\begin{bmatrix}
+    x_{1} \\
+    x_{2} \\
+  \end{bmatrix} 
+  ~ \sim \mathcal{N}(
+  \begin{bmatrix}
+    \mu_{1} \\
+    \mu_{2} \\
+  \end{bmatrix},
+  \begin{bmatrix}
+    \Sigma_{11}& \Sigma_{12} \\
+    \Sigma_{21}& \Sigma_{22} \\
+  \end{bmatrix})\]
+\[ \Vec{x} ~ \sim \mathcal{N}(\Vec{\mu}, \mathbf{\Sigma}) \]
+
+In this representation, both the $x$'s and the $\mu$'s are written as \textit{vectors}.
+Vectors are like an array in which each element represents a different axis of the space.
+We can collapse this representation with with second notation.
+
+This description is read as \textit{the vector $\Vec{x}$ comes from a multivariate Gaussian with mean $\Vec{\mu}$ and covariance matrix $\mathbf{\Sigma}$.}
+
+\subsubsection{Gaussian Regression: Training the Model}
+
+The goal of a Gaussian Process is to fit a multivariate Gaussian to a set of observations about the underlying problem space.
+We call this process regression.
+Let's imagine we have an unknown function $f(x)$, we will try to build a Gaussian to fit this function with Gaussian regression (See figure \ref{fig:GPRegression}).
+
+\begin{figure}[htb]
+\centering
+\psfig{file=GPRegression.pdf,width = 3in}
+\caption{}
+\label{fig:GPRegression}
+\end{figure}
+
+In this example, the multivariate Gaussian that models these points will be a Gaussian of three variables (one for each observed point).
+In any Gaussian regression, this Gaussian will have 0 mean.
+In order to shape this Gaussian to fit our data well, we need to introduce a kernel matrix, \textit{K}.
+Ultimately, we decide the values for each element in K.
+The rule that we use to define these values in known as the \textit{kernel}.
+In Gaussian processes, it is common to use the \textit{squared exponential kernel}:
+
+\[k_{i,j} = e^{-\|x_{i} - x_{j} \|^{2}} = 
+    \begin{cases} 
+      0 & \|x_{i} - x_{j} \| \rightarrow \infty\\
+      1 & x_{i} = x_{j}
+    \end{cases}\]
+    
+As the distance between x's decrease, the squared exponential kernel will get closer and closer to one.
+As distance between x's increase, the squared exponential kernel will drop off exponentially towards 0.
+The idea behind the squared exponential kernel is that small changes in x, will result in small changes to $f(x)$. A squared exponential kernel will result in a smooth transition from one observed point to another. 
+
+\subsubsection{Gaussian Processes: Extrapolating Points}
+
+Via Gaussian regression, we have fit a multivariate Gaussian to our observed data from the problem space.
+Now, we want to predict what $f(x)$ will be for values of x not in our observed data.
+In the following case, we want to find $f_{*}$ for a given $x_{*}$ (See \ref{fig:GPEXT}).
+
+\begin{figure}[htb]
+\centering
+\psfig{file=GP_EXT.pdf,width = 3in}
+\caption{}
+\label{fig:GPEXT}
+\end{figure}
+
+We extrapolate $f_{*}$ by creating a new Gaussian via \textit{appending} $f_{*}$ to our Gaussian from the Gaussian regression.
+This new Gaussian will have four variables that will range from $f_{1}$ to $f_{3}$ (our training set $f$), and $f_{*}$.
+Just like before, this new Gaussian will have 0 mean for each variable.
+However, we now have to compute the kernel to and from each point in our training set and $x_{*}$.
+Figure \ref{fig:GPEXT} shows how the kernel from this new Gaussian can be segmented into four pieces:
+
+ \begin{itemize}
+   \item Our $\mathbf{K}$ from the training set.
+   \item $\mathbf{K_{*}}$, the kernel from each point in the training set to $x_{*}$.
+   \item $\mathbf{K_{*T}}$ (Read as $\mathbf{K_{*}}$ transpose), the kernel from $x_{*}$ to each point in the training set.
+   \item $\mathbf{K_{**}}$, the kernel of $x_{*}$ to itself.
+ \end{itemize}
+ 
+ It is possible for this new Gaussian to be written as follows.
+ However, the proof for this is outside the scope of this paper.
+ 
+\[\begin{bmatrix}
+    f \\
+    f_{*} \\
+  \end{bmatrix} 
+  ~ \sim \mathcal{N}(
+    ,\mathbf{K_{*}^{T} K^{-1}} \Vec{f}
+    -\mathbf{K_{*}^{T} K^{-1} K_{*}} + \mathbf{K_{**}} )\]
+    
+\footnote{This notation features several concepts from linear algebra.
+First the processes of matrix/vector multiplication, and the \textit{inversion} ($\mathbf{K}^{-1}$) of a matrix.
+While these concepts are straightforward, space constraints prevent us from discussing them in depth. If you are interested in learning about matrix multiplication, please see \url{https://youtu.be/aKhhYguY0DQ}.
+If you are interested in learning about matrix inversion, please see \url{https://youtu.be/iUQR0enP7RQ}.}
+
+This new representation allows us to say that $f_{*}$ is a Gaussian with mean and variance:
+
+\[ \mu_{*} \sim \mathbf{K_{*}^{T} K^{-1}} \Vec{f},  \sigma_{*} \sim  -\mathbf{K_{*}^{T} K^{-1} K_{*}} + \mathbf{K_{**}}\]
+
+Looking at figure \ref{fig:GPEXT}, we can see that our approximation for $f_{*}$ is simply the mean, $\mu_{*}$, and our confidence in this prediction is marked by our variance, $\sigma_{*}$.
+
+If we can extrapolate $x_{*}$, we can extrapolate a different $x_{*2}$ not in the training set.
+We simply append this new $f_{*2}$ to our training set $f$, and arrive at a four dimensional Gaussian.
+We take the mean and variance from this Gaussian and plot it just as we did for $x_{*}$.
+
+If we extrapolate so many points that to the human eye, the means and variances form lines, and we can see the full result of our Gaussian process in figure \ref{fig:GP-Complete}.
+
+\begin{figure}[htb]
+\centering
+\psfig{file=GP-Complete.pdf,width = 3in}
+\caption{}
+\label{fig:GP-Complete}
+\end{figure}
+
+Using the squared exponential kernel, we get a smooth mean prediction.
+More importantly, we can measure how confident each prediction is at every single point.
+The variance contracts around our observed points, and expands as we get farther away from the observed points.
+This leads to an important feature of Gaussian processes: \textit{Where there is data, we are confident, where there is no data, we are less confident}.
 
 \subsection{Bayesian Optimization}
 \label{bayesianOptimization}
 
-\subsection{Gaussian Process}
-\subsubsection{gaussianProcess}
+The fact that Gaussian processes are confident where there is data, and less confident where there is not, allows us to ask an important question:
+\textit{If we were to add another point to our Gaussian processes, where would we do it?}
+If our objective is to maximize the function modeled by our Gaussian processes in Figure \ref{fig:GP-Complete}, then our new point can help us do that in one of two ways:
+First, we could try to pick a point where our prediction is maximized, very near $x_3$; this is called \textit{exploiting} our problem space.
+Second, there is an area in between $x_2$ and $x_3$ in where the model has a high variance.
+Selecting a point in this area would improve the overall accuracy of our model, and there might just be a maxima to the function in that region.
+Selecting a point for this rational is called \textit{exploring} the problem space.
 
 \subsection{SAIL Algorithm}
 \label{SAILAlgorithm}
@@ -188,35 +446,8 @@ Fitness functions can be setup such that a good score is small score, a small ab
 \section{Conclusions}
 \label{sec:conclusions}
 
-This paragraph will end the body of this sample document.
-Remember that you might still have Acknowledgments or
-Appendices; brief samples of these
-follow.  There is still the Bibliography to deal with; and
-we will make a disclaimer about that here: with the exception
-of the reference to the \LaTeX\ book, the citations in
-this paper are to articles which have nothing to
-do with the present subject and are used as
-examples only.
-
 \section*{Acknowledgments}
 \label{sec:acknowledgments}
-
-This section is optional; it is a location for you
-to acknowledge grants, funding, editing assistance and
-what have you.
-
-You want to use the \texttt{\textbackslash section*} version of the \texttt{section}
-command, as an acknowledgments section typically does \emph{not} get
-a number.
-
-It is common (but by no means necessary) for students to thank
-their advisor, and possibly other faculty, friends, and family who provided
-useful feedback on the paper as it was being written.
-
-In the present case, for example, the
-authors would like to thank Gerald Murray of ACM for
-his help in codifying this \textit{Author's Guide}
-and the \textbf{.cls} and \textbf{.tex} files that it describes.
 
 % The following two commands are all you need in the
 % initial runs of your .tex file to
