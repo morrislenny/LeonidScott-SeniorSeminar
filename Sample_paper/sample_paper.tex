@@ -18,6 +18,7 @@
     linkcolor=black,
     filecolor=black,      
     urlcolor=cyan,
+    citecolor=black
 }
 
 %%%%% Uncomment the following line and comment out the previous one
@@ -52,6 +53,23 @@ Leonid Scott\\
 
 \maketitle
 \begin{abstract}
+Many engineering contexts require computationally expensive models in order to learn how a design will behave.
+No other domain of engineering epitomizes this struggle like the area of fluid dynamics.
+If an engineer wants to know how air (or water) will move around a wing shape, they will have to use extraordinary computational power in order to simulate a wind tunnel or towing tank.
+This disconnect between having a solution and knowing it's performance makes it even more difficult to try to figure out what a ``good'' design for a condition is.
+
+To assist in this effort engineers rely on optimizers to take a solution, and tweak it until it becomes the best version of itself.
+In 2014, Autodesk, a fluid dynamics model and optimizer producer, did a study(Bradner et al) to see how engineers where using their software.
+They found that engineers were using Autodesk's tools in a peculiar way.
+Instead of using these tools to find one excellent solution, they were using these tools to find a variety of good solutions.
+By doing this, engineers could see tradeoffs inherent in the problem space, and use this information to hone in on regions of interest.
+This behavior is called \textit{illumination}.
+
+A research team from Germany and France decided to build an algorithm to illuminate problem spaces, especially when the underlying model is computationally expensive.
+They called this algorithm \textit{Surrogate Assisted Illumination}, or SAIL \cite{Gaier:2018}.
+We are going to walk through the SAIL algorithm, and investigate an experiment done by the authors in which SAIL is applied to the design of aerodynamic hulls for \textit{velomobiles} (very fast bicycles).
+This experiment, demonstrates SAIL's potential to find a variety of high performing solutions, and an ability to teach us about the underlying model.
+
 \begin{comment}
 This paper takes a deep dive into Gaier et al's paper, \textit{Data-Efficient Design Exploration through Surrogate-Assisted Illumination}.
 While many evolutionary algorithms attempt to find the optimal solution to a problem space, Gaier et al develops an evolutionary algorithm that \textit{illuminates} the problem space. 
@@ -431,22 +449,252 @@ Second, there is an area in between $x_2$ and $x_3$ in where the model has a hig
 Selecting a point in this area would improve the overall accuracy of our model, and there might just be a maxima to the function in that region.
 Selecting a point for this rational is called \textit{exploring} the problem space.
 
+The degree to which we should explore or exploit the problem space is a difficult question;
+\textit{Bayesian Optimization} attempts to provides a solution.
+
+\begin{figure}[htb]
+\centering
+\psfig{file=t-4.png,width = 3in}
+\label{fig:t4}
+\end{figure}
+
+\begin{figure}[htb]
+\centering
+\psfig{file=t-5.png,width = 3in}
+\label{fig:BO5}
+\caption{}
+\end{figure}
+
+Bayesian Optimization provides a rule for computing the \textit{utility} of observing another point.
+There are many different ways of computing utility with Bayesian Optimization;
+Gair et al decided to use the \textit{Upper Confidence Bound Optimizer}:
+
+\[ UCB(x) = \mu(x) + k\sigma(x) \]
+
+The utility of observing a new value from the model, the $UCB(x)$, is the linear combination of the the mean prediction at a point, $\mu(x)$, and some constant $k$, times the variance, $\sigma(x)$, at some point.
+Varying $k$ tunes the model to favor exploration vs exploitation in different quantities. We call the resulting function the \textit{acquisition function}.
+
+Figure \ref{fig:BO5} shows how a Bayesian Optimization is applied to a Gaussian Processes.
+The black line represents the underlying function we are trying model, the blue dotted line represents the mean estimation from the Gaussian processes, and the blue shaded region shows the confidence bounds for the GP.
+Below, the UCB is computed along the x axis.
+
+The left side shows the GP with four observations (There is a red dot very far on the right).
+At this stage, the model is not doing too well at approximating the true function.
+Maximizing the acquisition function gives us a point with both a high approximated value and a high variance.
+
+We select that point, re-compute the Gaussian processes and rebuild the acquisition function.
+The updated GP and acquisition function is shown on the right.
+Again, UCB balances exploration vs exploitation and finds a point with a high predicted value, and high certainty.
+Using Bayesian Optimization allows the GP to model the underlying function with very few points, and make significant progress with each observation. 
+
 \subsection{SAIL Algorithm}
 \label{SAILAlgorithm}
 
-\section{Experiments}
-\label{experiments}
+Understanding Gaussian processes and Bayesian Optimization allows us to construct Surrogate Assisted Illumination (SAIL).
+The pseudocode of SAIL is shown in figure \ref{fig:SAILpcode}.
+SAIL consists of three phases: 
+1) Creation of the Gaussian processes, 
+2) The production of the acquisition map, 
+3) The production of the prediction map. 
 
-\subsection{2D Foil Experiment}
-\label{2DFoilExperiment}
+\begin{figure}[htb]
+\centering
+\psfig{file=SAILpcode.PNG,width = 4in}
+\label{fig:SAILpcode}
+\caption{}
+\end{figure}
 
-\subsection{3D Foil Experiment: Velomobile Experiment}
+The first stage of the algorithm consists of sampling the problem space and building a Gaussian processes.
+Recalling the foil terminology used in section 3.1, SAIL would create random individuals with \textit{M} and \textit{P} values, compute the precise model for each of them, and use those results to build a Gaussian process.
+The random solutions are created using a random number generator called a Sobol sequence.
+
+Next, SAIL trains the Gaussian processes by producing an \textit{acquisition map}.
+In this stage, an acquisition function is computed from the Gaussian process using the \textit{Upper Confidence Bound} (UCB).
+It is important to note that even though the UCB acquisition function may be made up of a linear combination of components, these components are in no way simple shapes.
+For this reason, the acquisition function will not have intuitive shapes.
+Moreover, in problems where a individual is comprised of many genomes, the acquisition function may be a high dimensional shape (ex: 5 dimensions).
+Considering this, finding optima in the acquisition function can become a challenge.
+MAP-Elites is perfectly suited to find not just the global optima of the acquisition function, but illuminate the acquisition function.
+The resulting set of high utility individuals is called the \textit{acquisition map}. 
+
+SAIL takes a random set of individuals from the acquisition map, and runs the computationally expensive model on them.
+Now there is a larger set of observed values that can be used to retrain the Gaussian processes.
+The loop will enter its next iteration, it will repeat the process of creating the acquisition function, illuminating the acquisition function to create an acquisition map, selecting individuals from the acquisition map for precise evaluation, and rebuilding the Gaussian process with the new observations.
+This processes will continue until a fixed computational budget is reached.
+
+Through extensive iteration, the Gaussian process ossifies into a robust model that accurately describes the underlying function.
+The goal of SAIL is to illuminate the underlying function.
+This task is fulfilled by illuminating the mean prediction of the Gaussian processes using MAP Elites.
+The result of this illumination is a set of well performing solutions describing the various optima of the problem space.
+We call this result set of solutions the prediction map.
+
+\section{3D Foil Experiment: Velomobile Experiment}
 \label{3DFoilExperiment}
+
+Gaier et al included two experiments in their paper.
+Due to space constraints, we will only visit the more ambitious of the two:
+The application of SAIL to design three dimensional shapes of aerodynamic hulls for \textit{velomobiles}.
+Velomobiles, shown in figure \ref{fig:Velomobile}, are fully human powered "bicycles".
+The cyclists in a velomobile sit in a \textit{recumbent position}, like one would sit in a paddle boat, and are enclosed in an aerodynamic hull.
+This design allows the center of gravity of the velomobile to low in comparison to a bicycle, and the hull allows engineers to carefully craft the airflow around the velomobile to reduce drag.
+Velomobiles hold several world speed records for human powered devices.
+
+\begin{figure}[htb]
+\centering
+\psfig{file=Velomobile.PNG,width = 3in}
+\label{fig:Velomobile}
+\caption{}
+\end{figure}
+
+As seen in figure \ref{fig:Velomobile}, velomobiles have unintuitive hull shapes.
+The strange contours to these hulls provide an interesting problem space to illuminate.
+Moreover, the fluid dynamics software that simulates how air moves around the hull shape has high computational cost, stressing the need for a \textit{data efficient} approach to illumination.
+In short, the illumination of velomobile hulls is a good testing ground for SAIL.
+
+Gaier et al encountered several difficulties with this experiment.
+Most prevalently, the data efficient nature of this problem rules out use of two other control techniques for illumination:
+MAP-Elites, and another optimizer called CMA-ES.
+With these technique's heavy reliance on the computationally expensive model, illuminating these shapes would take hundreds, if not thousands of hours to run.
+Previous experiments in \cite{Gaier:2018} demonstrate SAIL's ability to create near optimal solutions in fluid dynamic contexts, so the focus shifted from testing SAIL's ability to compete against other illumination algorithms, to focusing on how different velomobile representations affect performance of the SAIL algorithm.
+Two representations, or encodings, of velomobile shape, are used in this experiment: a parameterized, and deformed encoding.
+
+\subsection{Parameterized Encodings}
+The parameterized encoding uses a set of aerofoil shapes to create a three dimensional velomobile hull as seen in figure \ref{fig:ParameterizedEncoding}.
+
+\begin{figure}[htb]
+\centering
+\psfig{file=ParameterizedEncoding.PNG,width = 3in}
+\label{fig:ParameterizedEncoding}
+\caption{}
+\end{figure}
+
+There are four foil shapes in the parameterized encoding.
+The top foil shape, is a symmetrical foil that defines the hull at its widest point from above.
+The mid foil shape represents the foil at it's centerline.
+The ridge foil represents the hull where the cyclists knees protrude upward.
+Finally, the rib foil effects how aggressively curved surface of the hull will be in order to cross through these foils correctly.
+All in all, this encoding will contain 16 parameters that affect hull shape. 
+An advantage of an encoding like this is that each of the 16 parameters are known to change the aerodynamic properties of their respective foil shape.
+
+\subsection{Deformation Encodings}
+Where the parameterized encoding SAIL to change key aspects of the shape directly corresponding to performance, deformed encodings take the opposite approach.
+Deformation encodings try to ``decouple the complexity of a the design from the complexity of the representation''.
+That is, deformed representations allow SAIL to find key features of foil performance on its own.
+Figure \ref{fig:Deformation} shows an example of a deformation encoding:
+
+\begin{figure}[htb]
+\centering
+\psfig{file=Deformation.PNG,width = 3in}
+\label{fig:Deformation}
+\caption{}
+\end{figure}
+
+Deformation encodings start with a base design, and surround it with a \textit{lattice}, or grid, of \textit{control points}.
+These control points can be shifted in a particular axis.
+As a control point is moved, the base design will \textit{deform} to adjust to the shifted control point.
+This particular representation allows for 16 different points to be altered, each in only one axis.
+
+\subsection{Experimental Setup}
+The goal of this experiment is to see how two features, curvature and volume impact the drag of a velomobile shape.
+It is known that an increase in volume of a shape leads to an increase in drag, but a designer might want to have explored how volume impacts drag to accommodate shifting requirements about the volume (all of a sudden, the pedaling mechanism might need to take up more space).
+Moreover, designs with less curvature will generally have less drag, but the thin carbon fiber might might require additional (heavy) reinforcement to prevent flutter at high speed. 
+
+SAIL will start with 200 velomobile shapes to train the GP model. During each iteration of the illumination phase, 10 individuals will be chosen from the acquisition map to improve the GP.
+There will be a total of 100 illumination iterations leading to 1000 precise evaluations during the illumination phase.
+The feature map will be discretized into a 25 x 25 map, leading to 625 bins. 
+
+Fitness will be computed as the drag force on the velomobile as it travels at 20 m/s (44.7 mph).
+A low drag force will represent a better velomobile.
+
+\subsection{Results: Design Performance}
+The following diagram shows the prediction maps for both the deformed and parameterized encodings as well as a comparison against the two.
+In the left two images, a lighter colour indicates more drag, and a cooler colour indicating less.
+In this experiment, we are aiming to minimize drag, so darker regions are preferred.
+
+\begin{figure}[htb]
+\centering
+\psfig{file=DesignPerformance.png,width = 3in}
+\label{fig:DesignPerformance}
+\caption{}
+\end{figure}
+
+It's apparent that the deformation encoding has a set of empty bins in the high volume, high curvature section of its prediction map.
+This is because the deformed encoding is too tightly constrained to create high volume, high curvature solutions.
+It is clear that drag does increase as volume increases.
+However, it seems that encoding constraints aside, curvature does not seem to have a strong impact on drag.
+
+The right side of figure \ref{fig:DesignPerformance} shows the deformation encodings' successes against the parameterized encoding.
+Lighter colour highlights regions where deformation has a better fitness than the parameterized encoding;
+Cooler colour indicates the converse.
+There is only colour where there is a significant change in fitness between the two encodings.
+Deformation does better in the high volume, low curvature region of the feature space, where as the parameterized encoding does better around the edges of the feature space.
+
+\subsection{Results: Model Accuracy}
+After each SAIL run, every individual in the prediction map was tested against the computationally expensive model in order to record errors in the GP model at the end of the run.
+
+\begin{figure}[htb]
+\centering
+\psfig{file=ModelAccuracy.PNG,width = 3in}
+\label{fig:ModelAccuracy}
+\caption{}
+\end{figure}
+
+Figure \ref{fig:ModelAccuracy} shows that roughly 60\% of the drag calculations for individual's where within 5\% of the computationally expensive fluid dynamics model.
+The parameterized encoding was within 0.1N of the true drag value roughly 50\% of the time.
+The deformed encoding was within 0.05N of the true drag value over 60\%.
+It is unclear why the deformed encoding would have a lower error than the parameterized model.
+
+\subsection{Results: Design Exploration}
+The two encodings lead to very different looking solutions that occupy the same bins in the prediction map at the end of the SAIL run.
+Figure \ref{fig:CrossSections} shows various cross sections of the deformed and parameterized solutions across several bins.
+For nearly all of these cross sections, the parameterized solution is taller than its deformation equivalent. 
+
+\begin{figure}[htb]
+\centering
+\psfig{file=CrossSections.PNG,width = 3in}
+\label{fig:CrossSections}
+\caption{}
+\end{figure}
+
+Gaier et al suspect that parameterized encodings are taller than deformed encodings because they have more freedom to pinch the nose of the velomobile than deformed encodings can (see figure \ref{fig:3DShapes}).
+A pinched nose reduces frontal area, thereby reducing pressure on the nose of the velomobile.
+While deformed designs lack this geometric freedom, they make up for it by smoothing out the shape along the length of the entire velomobile, especially where the knee ridges meet the rest of the hull.
+
+\begin{figure}[htb]
+\centering
+\psfig{file=3DShapes.PNG,width = 3in}
+\label{fig:3DShapes}
+\caption{Two sets of similarly performing solutions that highlights the geometric tendencies of each encoding.
+The left side includes two similarly performing low volume velombiles.
+The right includes two similar high volume designs.
+The red indicates how aerodynamic pressure is distributed over the velomobile shape.
+Areas of greater intensity of red indicate higher aerodynamic pressure.}
+\end{figure}
+
+These experiments show how various encodings can reach similarly performing solutions from different directions.
+Moreover, these experiments showcase SAIL's ability to create a variety of high performing solutions independent of encoding.
 
 \section{Conclusions}
 \label{sec:conclusions}
+The velomobile experiment has demonstrated several qualities and observations about SAIL’s capabilities.
+These velomobile experiments show the potential of SAIL as a powerful algorithm for illuminating problem spaces in computationally difficult problem spaces.
+Moreover, SAIL could be used for testing the limits of various encodings of individuals.
+Before, committing to a specific encoding, SAIL can show whether or not that encoding is capable of reaching far areas of the feature space.
+Moreover, SAIL can give an engineer insights as to how each individual point of variation in the encoding contributes to the performance. 
+
+A particular advantage of SAIL is that it doesn’t just have to return a set of high performing solutions, but also the final GP model.
+This model can be used to gain insights on the problem space.
+
+Gaier et al mention that a potential bottleneck for SAIL is the behavior function.
+For example, in the 2D foil example of MAP-Elites, the features include lift, drag, and cross sectional area.
+Even though the fitness function is not hard to compute, the behavior function will take a large amount of computational energy to compute lift and drag.
+Gaier et al propose the expanded use of surrogate models in the behavior function in cases where the behavior function is too computationally expensive to run for every individual in a SAIL run.
 
 \section*{Acknowledgments}
+There are a lot of people who deserve acknowledgment for the help they have provided me during this senior seminar. Thank you to Andrew Kroska, Islamzhan Saliyev, <Insert external reviewer here>, and <a lot of people> for their gracious time, and review of this paper.
+Thank you to my advisor, Nic McPhee, for his continued mentorship and time throughout this semester and my college career.
+Thank you to the Computer Science faculty at University of Minnesota Morris.
+And finally, thank you to Alexa Barta for her emotional support.
 \label{sec:acknowledgments}
 
 % The following two commands are all you need in the
